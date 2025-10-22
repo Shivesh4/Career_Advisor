@@ -157,125 +157,198 @@ const Jobs = () => {
 
       const [gh, lv, wd, ab] = await Promise.all([
         // Greenhouse summaries
-        parallelFetch(
-          ATS_SOURCES.GREENHOUSE.map(async (company) => {
+        // --- Greenhouse ---
+parallelFetch(
+  ATS_SOURCES.GREENHOUSE.map(async (company) => {
+    try {
+      const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${company}/jobs`);
+      updateProgress();
+      const data = await res.json();
+
+      if (data.jobs) {
+        const detailedJobs = await Promise.all(
+          data.jobs.map(async (job: any) => {
             try {
-              const res = await fetch(`https://boards-api.greenhouse.io/v1/boards/${company}/jobs`);
-              updateProgress();
-              const data = await res.json();
-              return (
-                data.jobs?.map((j: any) => ({
-                  id: `gh-${j.id}`,
-                  title: j.title,
-                  company,
-                  location: j.location?.name || "Remote",
-                  url: j.absolute_url,
-                  source: "Greenhouse",
-                  jobType: "Not specified",
-                  description: j.content || "",
-                  datePosted: j.updated_at || null,
-                  status: "saved",
-                })) || []
+              const detailsRes = await fetch(
+                `https://boards-api.greenhouse.io/v1/boards/${company}/jobs/${job.id}`
               );
+              const jobDetails = await detailsRes.json();
+
+              const jobType =
+                jobDetails.metadata?.find((m: any) => m.name === "Employment Type")?.value ||
+                "Not specified";
+
+              const plainDescription = jobDetails.content
+                ? jobDetails.content.replace(/<[^>]+>/g, "")
+                : "No description available";
+
+              const requirements =
+                jobDetails.metadata?.find((m: any) => m.name === "Requirements")?.value || "";
+
+              return {
+                id: `gh-${job.id}`,
+                title: job.title,
+                company,
+                location: job.location?.name || "Remote",
+                url: job.absolute_url,
+                source: "Greenhouse",
+                jobType,
+                description: plainDescription, // ✅ your original code
+                requirements,
+                datePosted: job.updated_at || job.created_at || null,
+                status: "saved",
+              };
             } catch {
-              updateProgress();
-              return [];
+              return null;
             }
           })
-        ),
+        );
+        return detailedJobs.filter(Boolean);
+      }
+      return [];
+    } catch {
+      updateProgress();
+      return [];
+    }
+  })
+),
+
         // Lever summaries
-        parallelFetch(
-          ATS_SOURCES.LEVER.map(async (company) => {
+        // --- Lever ---
+parallelFetch(
+  ATS_SOURCES.LEVER.map(async (company) => {
+    try {
+      const res = await fetch(`https://api.lever.co/v0/postings/${company}?mode=json`);
+      updateProgress();
+      const data = await res.json();
+
+      if (Array.isArray(data)) {
+        const detailedJobs = await Promise.all(
+          data.map(async (job: any) => {
             try {
-              const res = await fetch(`https://api.lever.co/v0/postings/${company}?mode=json`);
-              updateProgress();
-              const data = await res.json();
-              return Array.isArray(data)
-                ? data.map((j: any) => ({
-                    id: `lv-${j.id}`,
-                    title: j.text,
-                    company,
-                    location: j.categories?.location || "Remote",
-                    url: j.hostedUrl,
-                    source: "Lever",
-                    jobType: j.categories?.commitment || "Not specified",
-                    description: j.description || "",
-                    datePosted: j.createdAt ? new Date(j.createdAt).toISOString() : null,
-                    status: "saved",
-                  }))
-                : [];
+              const detailsRes = await fetch(
+                `https://api.lever.co/v0/postings/${company}/${job.id}`
+              );
+              const jobDetails = await detailsRes.json();
+
+              const jobType =
+                jobDetails.categories?.commitment ||
+                job.categories?.commitment ||
+                "Not specified";
+
+              const plainDescription = jobDetails.description
+                ? jobDetails.description.replace(/<[^>]+>/g, "")
+                : "No description available";
+
+              return {
+                id: `lv-${job.id}`,
+                title: job.text,
+                company,
+                location:
+                  job.categories?.location || jobDetails.categories?.location || "Remote",
+                url: job.hostedUrl,
+                source: "Lever",
+                jobType,
+                description: plainDescription, // ✅ same logic added here
+                datePosted: job.createdAt
+                  ? new Date(job.createdAt).toISOString()
+                  : null,
+                status: "saved",
+              };
             } catch {
-              updateProgress();
-              return [];
+              return null;
             }
           })
-        ),
+        );
+        return detailedJobs.filter(Boolean);
+      }
+      return [];
+    } catch {
+      updateProgress();
+      return [];
+    }
+  })
+),
+
         // Workday
-        parallelFetch(
-          ATS_SOURCES.WORKDAY.map(async (company) => {
-            try {
-              const res = await fetch(
-                `https://${company}.wd1.myworkdayjobs.com/en-US/wday/cxs/${company}/jobs`
-              );
-              updateProgress();
-              const text = await res.text();
-              const matches = text.match(
-                /"title":"(.*?)".*?"locations":\["(.*?)"\].*?"externalPath":"(.*?)"/g
-              );
-              return (
-                matches?.map((m, i) => {
-                  const p = m.match(
-                    /"title":"(.*?)".*?"locations":\["(.*?)"\].*?"externalPath":"(.*?)"/
-                  );
-                  return {
-                    id: `wd-${company}-${i}`,
-                    title: p?.[1] || "Untitled",
-                    company,
-                    location: p?.[2] || "Remote",
-                    url: `https://${company}.wd1.myworkdayjobs.com${p?.[3]}`,
-                    source: "Workday",
-                    jobType: "Not specified",
-                    description: "Workday job posting",
-                    datePosted: null,
-                    status: "saved",
-                  };
-                }) || []
-              );
-            } catch {
-              updateProgress();
-              return [];
-            }
-          })
-        ),
+        // --- Workday ---
+parallelFetch(
+  ATS_SOURCES.WORKDAY.map(async (company) => {
+    try {
+      const res = await fetch(
+        `https://${company}.wd1.myworkdayjobs.com/en-US/wday/cxs/${company}/jobs`
+      );
+      updateProgress();
+      const text = await res.text();
+      const matches = text.match(
+        /"title":"(.*?)".*?"locations":\["(.*?)"\].*?"externalPath":"(.*?)"/g
+      );
+
+      if (!matches) return [];
+
+      const detailedJobs = matches.map((m, i) => {
+        const p = m.match(
+          /"title":"(.*?)".*?"locations":\["(.*?)"\].*?"externalPath":"(.*?)"/
+        );
+        const plainDescription = "Workday job posting description not available";
+        return {
+          id: `wd-${company}-${i}`,
+          title: p?.[1] || "Untitled",
+          company,
+          location: p?.[2] || "Remote",
+          url: `https://${company}.wd1.myworkdayjobs.com${p?.[3]}`,
+          source: "Workday",
+          jobType: "Not specified",
+          description: plainDescription, // ✅ added
+          datePosted: null,
+          status: "saved",
+        };
+      });
+      return detailedJobs;
+    } catch {
+      updateProgress();
+      return [];
+    }
+  })
+),
+
         // Ashby
-        parallelFetch(
-          ATS_SOURCES.ASHBY.map(async (company) => {
-            try {
-              const res = await fetch(
-                `https://api.ashbyhq.com/posting-api/job-board/${company}`
-              );
-              updateProgress();
-              const data = await res.json();
-              return (
-                data.jobs?.map((j: any) => ({
-                  id: `ab-${j.id}`,
-                  title: j.title,
-                  company,
-                  location: j.location?.name || "Remote",
-                  url: j.applyUrl,
-                  source: "Ashby",
-                  jobType: j.employmentType || "Not specified",
-                  description: j.description || "",
-                  datePosted: j.publishedAt || null,
-                  status: "saved",
-                })) || []
-              );
-            } catch {
-              updateProgress();
-              return [];
-            }
-          })
-        ),
+        // --- Ashby ---
+parallelFetch(
+  ATS_SOURCES.ASHBY.map(async (company) => {
+    try {
+      const res = await fetch(`https://api.ashbyhq.com/posting-api/job-board/${company}`);
+      updateProgress();
+      const data = await res.json();
+
+      if (data.jobs) {
+        const detailedJobs = data.jobs.map((job: any) => {
+          const plainDescription = job.description
+            ? job.description.replace(/<[^>]+>/g, "")
+            : "No description available";
+          return {
+            id: `ab-${job.id}`,
+            title: job.title,
+            company,
+            location: job.location?.name || "Remote",
+            url: job.applyUrl,
+            source: "Ashby",
+            jobType: job.employmentType || "Not specified",
+            description: plainDescription, // ✅ same logic added
+            datePosted: job.publishedAt || null,
+            status: "saved",
+          };
+        });
+        return detailedJobs;
+      }
+      return [];
+    } catch {
+      updateProgress();
+      return [];
+    }
+  })
+),
+
       ]);
 
       const combined = [...gh.flat(), ...lv.flat(), ...wd.flat(), ...ab.flat()];
@@ -402,9 +475,7 @@ const Jobs = () => {
     <div className="min-h-screen bg-background">
       <Navigation />
       <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-4 flex items-center gap-2">
-          Find Jobs {loading && <Loader2 className="animate-spin h-5 w-5 text-blue-500" />}
-        </h1>
+        <h1 className="text-3xl font-bold mb-4">Find Jobs</h1>
 
         {notifications.map((n, i) => (
           <div key={i} className="bg-green-100 text-green-800 px-3 py-2 mb-3 rounded-md flex items-center gap-2">
@@ -412,11 +483,6 @@ const Jobs = () => {
           </div>
         ))}
 
-        {loading && (
-          <p className="text-sm text-muted-foreground mb-4">
-            Fetching {progress.done} / {progress.total} company boards…
-          </p>
-        )}
 
         {/* Search Inputs */}
         <div className="flex flex-wrap gap-3 mb-8">

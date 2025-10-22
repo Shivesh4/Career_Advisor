@@ -1,7 +1,18 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Navigation from "@/components/Navigation";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -28,9 +39,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogClose,
 } from "@/components/ui/dialog";
 
+// ✅ Decode encoded HTML from Lever/Greenhouse descriptions
+const decodeHtml = (html: string) => {
+  const txt = document.createElement("textarea");
+  txt.innerHTML = html;
+  return txt.value;
+};
 
 const Applications = () => {
   const [selectedJob, setSelectedJob] = useState<any>(null);
@@ -42,83 +58,69 @@ const Applications = () => {
     status: "",
   });
 
-  const [applications, setApplications] = useState([
-    {
-      id: 1,
-      jobTitle: "Intern - Software Engineering",
-      company: "PDC Protodyne Corporation",
-      appliedDate: "2025-10-10",
-      status: "saved",
-      location: "USA - CT - Bloomfield - 1302 Hall Boulevard, USA",
-      jobType: "Internship",
-      description:
-        "At Labcorp, we believe in the power of science to change lives. Our work combines unparalleled diagnostic laboratories, drug development capabilities, and commercial innovations.",
-    },
-    {
-      id: 2,
-      jobTitle: "AI Intern",
-      company: "Red Hat Consulting",
-      appliedDate: "2025-10-12",
-      status: "applied",
-      location: "Boston, USA",
-      jobType: "Internship",
-      description: "Assist in developing AI-powered tools and data pipelines for enterprise clients.",
-    },
-    {
-      id: 3,
-      jobTitle: "Full Stack Developer",
-      company: "Mercury",
-      appliedDate: "2025-10-04",
-      status: "offer",
-      location: "San Francisco, CA, USA",
-      jobType: "Full-time",
-      description: "Work on backend APIs and frontend dashboards in a fast-paced fintech startup.",
-    },
-    {
-      id: 4,
-      jobTitle: "Software Engineer Co-op",
-      company: "StartupXYZ",
-      appliedDate: "2025-09-28",
-      status: "rejected",
-      location: "Remote",
-      jobType: "Co-op",
-      description: "Worked on backend integrations and RESTful APIs.",
-    },
-  ]);
-
+  const [applications, setApplications] = useState<any[]>([]);
   const [archivedJobs, setArchivedJobs] = useState<any[]>([]);
   const [favoriteJobs, setFavoriteJobs] = useState<any[]>([]);
 
-  // 🔍 Filtering logic (local only)
+  // 🧠 Load saved jobs from localStorage
+  useEffect(() => {
+    const savedFromLocal = JSON.parse(localStorage.getItem("savedJobs") || "[]");
+    setApplications(savedFromLocal);
+  }, []);
+
+  // 🔄 Keep synced if localStorage changes or tab refocuses
+  useEffect(() => {
+    const syncLocal = () => {
+      const saved = JSON.parse(localStorage.getItem("savedJobs") || "[]");
+      setApplications(saved);
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") syncLocal();
+    };
+    window.addEventListener("storage", syncLocal);
+    document.addEventListener("visibilitychange", handleVisibility);
+    syncLocal();
+    return () => {
+      window.removeEventListener("storage", syncLocal);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
+  // 🔍 Filtering logic
   const filteredApplications = applications.filter((job) => {
     const q = filters.query.toLowerCase();
     const matchesQuery =
-      !q || job.jobTitle.toLowerCase().includes(q) || job.company.toLowerCase().includes(q);
-
+      !q ||
+      job.jobTitle?.toLowerCase().includes(q) ||
+      job.title?.toLowerCase().includes(q) ||
+      job.company?.toLowerCase().includes(q);
     const matchesJobType = !filters.jobType || job.jobType === filters.jobType;
     const matchesStatus = !filters.status || job.status === filters.status;
-
-    const appliedDate = new Date(job.appliedDate).getTime();
+    const appliedDate = job.appliedDate ? new Date(job.appliedDate).getTime() : 0;
     const fromDate = filters.appliedFrom ? new Date(filters.appliedFrom).getTime() : null;
     const untilDate = filters.appliedUntil ? new Date(filters.appliedUntil).getTime() : null;
-
     const matchesDateRange =
-      (!fromDate || appliedDate >= fromDate) && (!untilDate || appliedDate <= untilDate);
-
+      (!fromDate || appliedDate >= fromDate) &&
+      (!untilDate || appliedDate <= untilDate);
     return matchesQuery && matchesJobType && matchesStatus && matchesDateRange;
   });
 
-  const handleStatusChange = (id: number, newStatus: string) => {
+  // Handlers
+  const handleStatusChange = (id: string | number, newStatus: string) => {
     setApplications((prev) =>
       prev.map((job) => (job.id === id ? { ...job, status: newStatus } : job))
     );
     setSelectedJob((prev: any) => (prev ? { ...prev, status: newStatus } : prev));
   };
 
-  const handleDelete = (id: number) => {
+  const handleDelete = (id: string | number) => {
     setApplications((prev) => prev.filter((job) => job.id !== id));
     setArchivedJobs((prev) => prev.filter((job) => job.id !== id));
     setFavoriteJobs((prev) => prev.filter((job) => job.id !== id));
+    const updated = JSON.parse(localStorage.getItem("savedJobs") || "[]").filter(
+      (job: any) => job.id !== id
+    );
+    localStorage.setItem("savedJobs", JSON.stringify(updated));
     setSelectedJob(null);
   };
 
@@ -132,7 +134,9 @@ const Applications = () => {
   };
 
   const handleFavorite = (job: any) => {
-    if (!favoriteJobs.some((f) => f.id === job.id)) {
+    if (favoriteJobs.some((f) => f.id === job.id)) {
+      setFavoriteJobs((prev) => prev.filter((f) => f.id !== job.id)); // unsave
+    } else {
       setFavoriteJobs((prev) => [...prev, job]);
     }
     setSelectedJob(null);
@@ -151,7 +155,9 @@ const Applications = () => {
         <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold">Your Job Tracker</h1>
-            <p className="text-muted-foreground">Track and manage your job applications easily</p>
+            <p className="text-muted-foreground">
+              Track and manage your job applications easily
+            </p>
           </div>
         </div>
 
@@ -232,7 +238,7 @@ const Applications = () => {
                     <Card key={app.id} className="hover:shadow-md transition-all">
                       <CardHeader>
                         <div>
-                          <CardTitle className="text-lg">{app.jobTitle}</CardTitle>
+                          <CardTitle className="text-lg">{app.jobTitle || app.title}</CardTitle>
                           <CardDescription className="flex items-center gap-1">
                             <Building2 className="h-4 w-4" /> {app.company}
                           </CardDescription>
@@ -240,13 +246,21 @@ const Applications = () => {
                       </CardHeader>
 
                       <CardContent className="space-y-3">
-                        {app.status !== "saved" && (
+                        {app.status !== "saved" && app.appliedDate && (
                           <div className="flex flex-col gap-1 text-sm text-muted-foreground">
                             <span className="flex items-center gap-1">
                               <Calendar className="h-4 w-4" /> Applied{" "}
                               {new Date(app.appliedDate).toLocaleDateString()}
                             </span>
                           </div>
+                        )}
+
+                        {/* ✅ Show date posted */}
+                        {app.datePosted && (
+                          <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                            <Calendar className="h-4 w-4" />
+                            Posted on {new Date(app.datePosted).toLocaleDateString()}
+                          </span>
                         )}
 
                         <Button
@@ -271,15 +285,27 @@ const Applications = () => {
             ) : (
               <div className="grid md:grid-cols-3 gap-4">
                 {archivedJobs.map((job) => (
-                  <Card key={job.id}>
+                  <Card key={job.id} className="hover:shadow-md transition-all">
                     <CardHeader>
-                      <CardTitle className="text-lg">{job.jobTitle}</CardTitle>
-                      <CardDescription>{job.company}</CardDescription>
+                      <CardTitle className="text-lg">{job.jobTitle || job.title}</CardTitle>
+                      <CardDescription className="flex items-center gap-1">
+                        <Building2 className="h-4 w-4" /> {job.company}
+                      </CardDescription>
+                      <p className="text-sm text-muted-foreground">{job.location}</p>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        Archived on {new Date(job.appliedDate).toLocaleDateString()}
-                      </p>
+                      {job.datePosted && (
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Posted on {new Date(job.datePosted).toLocaleDateString()}
+                        </p>
+                      )}
+                      <Button
+                        variant="outline"
+                        className="w-full mt-2"
+                        onClick={() => setSelectedJob(job)}
+                      >
+                        View Details <ExternalLink className="ml-2 h-4 w-4" />
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}
@@ -294,15 +320,27 @@ const Applications = () => {
             ) : (
               <div className="grid md:grid-cols-3 gap-4">
                 {favoriteJobs.map((job) => (
-                  <Card key={job.id}>
+                  <Card key={job.id} className="hover:shadow-md transition-all">
                     <CardHeader>
-                      <CardTitle className="text-lg">{job.jobTitle}</CardTitle>
-                      <CardDescription>{job.company}</CardDescription>
+                      <CardTitle className="text-lg">{job.jobTitle || job.title}</CardTitle>
+                      <CardDescription className="flex items-center gap-1">
+                        <Building2 className="h-4 w-4" /> {job.company}
+                      </CardDescription>
+                      <p className="text-sm text-muted-foreground">{job.location}</p>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        Favorited on {new Date(job.appliedDate).toLocaleDateString()}
-                      </p>
+                      {job.datePosted && (
+                        <p className="text-sm text-muted-foreground mb-1">
+                          Posted on {new Date(job.datePosted).toLocaleDateString()}
+                        </p>
+                      )}
+                      <Button
+                        variant="outline"
+                        className="w-full mt-2"
+                        onClick={() => setSelectedJob(job)}
+                      >
+                        View Details <ExternalLink className="ml-2 h-4 w-4" />
+                      </Button>
                     </CardContent>
                   </Card>
                 ))}
@@ -312,116 +350,146 @@ const Applications = () => {
         </Tabs>
       </div>
 
-      {/* Job Details Dialog */}
-    <Dialog open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
-  {selectedJob && (
-    <DialogContent className="max-w-3xl">
-      {/* ✅ Clean header alignment */}
-      <DialogHeader>
-        <div className="flex justify-between items-start w-full">
-          <DialogTitle className="text-2xl font-bold">{selectedJob.jobTitle}</DialogTitle>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setSelectedJob(null)}
-          >
-            <X className="h-5 w-5" />
-          </Button>
-        </div>
-      </DialogHeader>
+      {/* ✅ Job Details Dialog */}
+      <Dialog open={!!selectedJob} onOpenChange={() => setSelectedJob(null)}>
+        {selectedJob && (
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader className="sticky top-0 bg-background z-10 pb-4 border-b">
+              <div className="flex justify-between items-start w-full">
+                <DialogTitle className="text-2xl font-bold">
+                  {selectedJob.jobTitle || selectedJob.title}
+                </DialogTitle>
+                <Button variant="ghost" size="icon" onClick={() => setSelectedJob(null)}>
+                  <X className="h-5 w-5" />
+                </Button>
+              </div>
+            </DialogHeader>
 
-      {/* ✅ Job Details Section */}
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <p className="text-lg font-semibold">{selectedJob.company}</p>
-          <p className="text-muted-foreground text-sm">{selectedJob.location}</p>
-        </div>
+            <div className="flex justify-between items-center mb-4 mt-2">
+              <div>
+                <p className="text-lg font-semibold">{selectedJob.company}</p>
+                <p className="text-muted-foreground text-sm">{selectedJob.location}</p>
+              </div>
 
-        {/* Action Buttons */}
-        <div className="flex gap-2">
-          {selectedJob.status === "saved" && (
-            <Button variant="outline" className="flex items-center gap-1">
-              <Zap className="h-4 w-4 text-blue-500" /> Apply
-            </Button>
-          )}
-          <Button
-            variant="outline"
-            className="flex items-center gap-1"
-            onClick={() => handleFavorite(selectedJob)}
-          >
-            <Star className="h-4 w-4 text-blue-500" /> Favorite
-          </Button>
-          <Button
-            variant="outline"
-            className="flex items-center gap-1"
-            onClick={() => handleArchive(selectedJob)}
-          >
-            <Archive className="h-4 w-4 text-blue-500" /> Archive
-          </Button>
-          <Button
-            variant="destructive"
-            className="flex items-center gap-1"
-            onClick={() => handleDelete(selectedJob.id)}
-          >
-            <Trash2 className="h-4 w-4" /> Delete
-          </Button>
-        </div>
-      </div>
+              <div className="flex gap-2">
+                {selectedJob.status === "saved" && (
+                  <Button variant="outline" className="flex items-center gap-1">
+                    <Zap className="h-4 w-4 text-blue-500" /> Apply
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-1"
+                  onClick={() => handleFavorite(selectedJob)}
+                >
+                  <Star className="h-4 w-4 text-blue-500" /> Favorite
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex items-center gap-1"
+                  onClick={() => handleArchive(selectedJob)}
+                >
+                  <Archive className="h-4 w-4 text-blue-500" /> Archive
+                </Button>
+                <Button
+                  variant="destructive"
+                  className="flex items-center gap-1"
+                  onClick={() => handleDelete(selectedJob.id)}
+                >
+                  <Trash2 className="h-4 w-4" /> Delete
+                </Button>
+              </div>
+            </div>
 
-      {/* Job Info */}
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-4">
-          <p>
-            <strong>Job Type:</strong> {selectedJob.jobType}
-          </p>
-          {selectedJob.status !== "saved" && (
-            <p>
-              <strong>Applied On:</strong>{" "}
-              {new Date(selectedJob.appliedDate).toLocaleDateString()}
-            </p>
-          )}
+            {/* ✅ Job Info */}
+            <div className="grid md:grid-cols-3 gap-6">
+              <div className="md:col-span-2 space-y-4">
+                <p>
+                  <strong>Job Type:</strong> {selectedJob.jobType || "Not specified"}
+                </p>
 
-          <div>
-            <h3 className="text-lg font-semibold mt-4">Description</h3>
-            <p className="text-sm text-muted-foreground leading-relaxed">
-              {selectedJob.description}
-            </p>
-          </div>
-        </div>
+                {selectedJob.datePosted && (
+                  <p>
+                    <strong>Date Posted:</strong>{" "}
+                    {new Date(selectedJob.datePosted).toLocaleDateString()}
+                  </p>
+                )}
 
-        <div className="space-y-4">
-          <div>
-            <h4 className="font-semibold mb-2">Application Status</h4>
-            <Select
-              value={selectedJob.status}
-              onValueChange={(val) => handleStatusChange(selectedJob.id, val)}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="saved">Saved</SelectItem>
-                <SelectItem value="applied">Applied</SelectItem>
-                <SelectItem value="offer">Offer</SelectItem>
-                <SelectItem value="rejected">Rejected</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+                {selectedJob.status !== "saved" && selectedJob.appliedDate && (
+                  <p>
+                    <strong>Applied On:</strong>{" "}
+                    {new Date(selectedJob.appliedDate).toLocaleDateString()}
+                  </p>
+                )}
 
-          <div>
-            <h4 className="font-semibold mb-2">Notes</h4>
-            <textarea
-              placeholder="Add notes or reminders for this job..."
-              className="w-full border rounded-md p-2 text-sm bg-muted"
-              rows={5}
-            />
-          </div>
-        </div>
-      </div>
-    </DialogContent>
-  )}
-</Dialog>
+                <div>
+                  <h3 className="text-lg font-semibold mt-4 mb-2">Description</h3>
+                  {selectedJob.description ? (
+                    <div
+                      className="text-sm text-muted-foreground leading-relaxed space-y-2"
+                      dangerouslySetInnerHTML={{
+                        __html: decodeHtml(selectedJob.description),
+                      }}
+                    />
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No description available.
+                    </p>
+                  )}
+                </div>
 
+                {selectedJob.requirements && (
+                  <div>
+                    <h3 className="text-lg font-semibold mt-4 mb-2">Requirements</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">
+                      {selectedJob.requirements}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold mb-2">Application Status</h4>
+                  <Select
+                    value={selectedJob.status}
+                    onValueChange={(val) => handleStatusChange(selectedJob.id, val)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="saved">Saved</SelectItem>
+                      <SelectItem value="applied">Applied</SelectItem>
+                      <SelectItem value="offer">Offer</SelectItem>
+                      <SelectItem value="rejected">Rejected</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <h4 className="font-semibold mb-2">Notes</h4>
+                  <textarea
+                    placeholder="Add notes or reminders for this job..."
+                    className="w-full border rounded-md p-2 text-sm bg-muted"
+                    rows={5}
+                  />
+                </div>
+
+                {selectedJob.url && (
+                  <Button
+                    variant="default"
+                    className="w-full mt-4"
+                    onClick={() => window.open(selectedJob.url, "_blank")}
+                  >
+                    Apply Now
+                  </Button>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        )}
+      </Dialog>
     </div>
   );
 };

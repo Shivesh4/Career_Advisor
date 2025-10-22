@@ -153,10 +153,6 @@ const Applications = () => {
             <h1 className="text-3xl font-bold">Your Job Tracker</h1>
             <p className="text-muted-foreground">Track and manage your job applications easily</p>
           </div>
-          <div className="flex gap-2 mt-4 md:mt-0">
-            <Button variant="outline">Import CSV</Button>
-            <Button variant="outline">Export CSV</Button>
-          </div>
         </div>
 
         {/* Filters */}

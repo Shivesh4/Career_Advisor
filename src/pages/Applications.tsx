@@ -359,9 +359,9 @@ const Applications = () => {
                 <DialogTitle className="text-2xl font-bold">
                   {selectedJob.jobTitle || selectedJob.title}
                 </DialogTitle>
-                <Button variant="ghost" size="icon" onClick={() => setSelectedJob(null)}>
+                {/* <Button variant="ghost" size="icon" onClick={() => setSelectedJob(null)}>
                   <X className="h-5 w-5" />
-                </Button>
+                </Button> */}
               </div>
             </DialogHeader>
 

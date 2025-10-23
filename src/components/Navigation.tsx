@@ -9,6 +9,7 @@ const Navigation = () => {
     { path: "/", label: "Home", icon: Home },
     { path: "/jobs", label: "Jobs", icon: Briefcase },
     { path: "/applications", label: "Applications", icon: FileText },
+    { path: "/ats-scoring" , label: "ATS Scoring", icon: FileText},
     { path: "/profile", label: "Profile", icon: User },
   ];
 

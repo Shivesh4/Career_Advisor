@@ -10,6 +10,7 @@ import Applications from "./pages/Applications";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 import ATSScoring from "./pages/ATSScoring";
+import CareerMilestone from "./pages/CareerMilestone";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/jobs" element={<Jobs />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/ats-scoring" element={<ATSScoring />} />
+          <Route path="/career-milestone" element={<CareerMilestone />} />
           <Route path="/profile" element={<Profile />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

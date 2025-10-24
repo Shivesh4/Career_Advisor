@@ -1,6 +1,6 @@
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Briefcase, User, FileText, Home } from "lucide-react";
+import { Briefcase, User, FileText, Home, TrendingUp, Target } from "lucide-react";
 
 const Navigation = () => {
   const location = useLocation();
@@ -9,7 +9,8 @@ const Navigation = () => {
     { path: "/", label: "Home", icon: Home },
     { path: "/jobs", label: "Jobs", icon: Briefcase },
     { path: "/applications", label: "Applications", icon: FileText },
-    { path: "/ats-scoring" , label: "ATS Scoring", icon: FileText},
+    { path: "/ats-scoring" , label: "ATS Scoring", icon: Target},
+    { path: "/career-milestone" , label:"Career Milestone", icon:TrendingUp},
     { path: "/profile", label: "Profile", icon: User },
   ];
 

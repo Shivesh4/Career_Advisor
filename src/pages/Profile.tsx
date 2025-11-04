@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Navigation from "@/components/Navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,10 +9,25 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Upload, Plus, X, Target, BookOpen, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+import { loadMilestones } from "@/lib/milestoneStore";
 
 const Profile = () => {
   const [skills, setSkills] = useState(["React", "TypeScript", "Node.js", "PostgreSQL"]);
   const [newSkill, setNewSkill] = useState("");
+
+  // 🔽 recommendations loaded from Career Milestone analysis
+  type RecCourse = { title: string; provider: string; duration?: string; url?: string };
+  type RecArticle = { title: string; provider: string; url?: string };
+  const [recCourses, setRecCourses] = useState<RecCourse[]>([]);
+  const [recArticles, setRecArticles] = useState<RecArticle[]>([]);
+
+  useEffect(() => {
+    const data = loadMilestones();
+    if (data) {
+      setRecCourses(data.courses.map(({ title, provider, duration, url }) => ({ title, provider, duration, url })));
+      setRecArticles(data.articles.map(({ title, provider, url }) => ({ title, provider, url })));
+    }
+  }, []);
 
   const handleAddSkill = () => {
     if (newSkill.trim() && !skills.includes(newSkill.trim())) {
@@ -42,27 +57,15 @@ const Profile = () => {
   ];
 
   const resources = [
-    {
-      title: "Advanced React Patterns",
-      type: "Course",
-      duration: "12 hours",
-    },
-    {
-      title: "System Design Interview Prep",
-      type: "Article Series",
-      duration: "6 articles",
-    },
-    {
-      title: "PostgreSQL Performance Tuning",
-      type: "Video",
-      duration: "45 min",
-    },
+    { title: "Advanced React Patterns", type: "Course", duration: "12 hours" },
+    { title: "System Design Interview Prep", type: "Article Series", duration: "6 articles" },
+    { title: "PostgreSQL Performance Tuning", type: "Video", duration: "45 min" },
   ];
 
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto space-y-8">
           {/* Profile Header */}
@@ -82,9 +85,7 @@ const Profile = () => {
                     <Upload className="mr-2 h-4 w-4" />
                     Upload Photo
                   </Button>
-                  <p className="text-sm text-muted-foreground">
-                    JPG, PNG or GIF. Max 2MB
-                  </p>
+                  <p className="text-sm text-muted-foreground">JPG, PNG or GIF. Max 2MB</p>
                 </div>
               </div>
 
@@ -137,10 +138,7 @@ const Profile = () => {
                 {skills.map((skill) => (
                   <Badge key={skill} variant="secondary" className="text-sm px-3 py-1">
                     {skill}
-                    <button
-                      onClick={() => handleRemoveSkill(skill)}
-                      className="ml-2 hover:text-destructive"
-                    >
+                    <button onClick={() => handleRemoveSkill(skill)} className="ml-2 hover:text-destructive">
                       <X className="h-3 w-3" />
                     </button>
                   </Badge>
@@ -170,9 +168,7 @@ const Profile = () => {
             <CardContent>
               <div className="border-2 border-dashed rounded-lg p-8 text-center hover:border-primary transition-smooth cursor-pointer">
                 <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-2">
-                  Drag and drop your resume here, or click to browse
-                </p>
+                <p className="text-sm text-muted-foreground mb-2">Drag and drop your resume here, or click to browse</p>
                 <Button onClick={handleResumeUpload} variant="outline">
                   Choose File
                 </Button>
@@ -180,77 +176,72 @@ const Profile = () => {
             </CardContent>
           </Card>
 
-          {/* AI Skill Gap Analysis */}
-          <Card className="shadow-card border-primary/20">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <Target className="h-6 w-6 text-primary" />
-                <CardTitle className="text-2xl">AI Skill Gap Analysis</CardTitle>
-              </div>
-              <CardDescription>
-                Based on your profile and career goals, here are skills to develop
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {skillGaps.map((gap) => (
-                  <div
-                    key={gap.skill}
-                    className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-smooth"
-                  >
-                    <div>
-                      <p className="font-semibold">{gap.skill}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {gap.courses} recommended courses
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={gap.importance === "High" ? "default" : "secondary"}>
-                        {gap.importance}
-                      </Badge>
-                      <Button size="sm" className="gradient-primary text-white">
-                        <TrendingUp className="mr-2 h-4 w-4" />
-                        Learn
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* 🔽 Recommended Courses (dynamic) */}
+          {recCourses.length > 0 && (
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-2xl">Recommended Courses</CardTitle>
+                <CardDescription>Based on your resume & target role</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recCourses.map((c, idx) => {
+                    const label = `${c.provider}${c.duration ? ` · ${c.duration}` : ""}`;
+                    const open = () => {
+                      const q = encodeURIComponent(`${c.title} ${c.provider}`);
+                      window.open(c.url || `https://www.google.com/search?q=${q}`, "_blank", "noopener,noreferrer");
+                    };
+                    return (
+                      <div
+                        key={`${c.title}-${idx}`}
+                        onClick={open}
+                        className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-smooth cursor-pointer"
+                      >
+                        <div>
+                          <p className="font-semibold">{c.title}</p>
+                          <p className="text-sm text-muted-foreground">{label}</p>
+                        </div>
+                        <Button size="sm" variant="outline">View</Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          {/* Career Resources */}
-          <Card className="shadow-card border-accent/20">
-            <CardHeader>
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-6 w-6 text-accent" />
-                <CardTitle className="text-2xl">Recommended Resources</CardTitle>
-              </div>
-              <CardDescription>
-                Curated learning materials based on your interests
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {resources.map((resource) => (
-                  <div
-                    key={resource.title}
-                    className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-smooth"
-                  >
-                    <div>
-                      <p className="font-semibold">{resource.title}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {resource.type} · {resource.duration}
-                      </p>
-                    </div>
-                    <Button size="sm" variant="outline">
-                      View
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          {/* 🔽 Recommended Articles (dynamic) */}
+          {recArticles.length > 0 && (
+            <Card className="shadow-card">
+              <CardHeader>
+                <CardTitle className="text-2xl">Recommended Articles</CardTitle>
+                <CardDescription>Curated from your resume signals</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {recArticles.map((a, idx) => {
+                    const open = () => {
+                      const q = encodeURIComponent(`${a.title} ${a.provider}`);
+                      window.open(a.url || `https://www.google.com/search?q=${q}`, "_blank", "noopener,noreferrer");
+                    };
+                    return (
+                      <div
+                        key={`${a.title}-${idx}`}
+                        onClick={open}
+                        className="flex items-center justify-between p-4 rounded-lg bg-secondary/50 hover:bg-secondary transition-smooth cursor-pointer"
+                      >
+                        <div>
+                          <p className="font-semibold">{a.title}</p>
+                          <p className="text-sm text-muted-foreground">{a.provider}</p>
+                        </div>
+                        <Button size="sm" variant="outline">View</Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Save Button */}
           <div className="flex justify-end">

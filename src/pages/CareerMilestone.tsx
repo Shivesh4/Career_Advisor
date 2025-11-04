@@ -8,12 +8,14 @@ import { Upload, Target, BookOpen, Award, Lightbulb } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { extractTextFromPDF } from "@/lib/pdfParser";
 import { openai } from "@/lib/openai";
+import { saveMilestones } from "@/lib/milestoneStore";
 
 interface Resource {
   title: string;
   type: "course" | "article";
   provider: string;
   duration?: string;
+  url?: string;
 }
 
 interface Milestone {
@@ -33,16 +35,9 @@ const CareerMilestone = () => {
     const file = e.target.files?.[0];
     if (file && file.type === "application/pdf") {
       setResumeFile(file);
-      toast({
-        title: "Resume uploaded",
-        description: "Ready to analyze your career path!",
-      });
+      toast({ title: "Resume uploaded", description: "Ready to analyze your career path!" });
     } else {
-      toast({
-        title: "Invalid file",
-        description: "Please upload a PDF file",
-        variant: "destructive",
-      });
+      toast({ title: "Invalid file", description: "Please upload a PDF file", variant: "destructive" });
     }
   };
 
@@ -65,7 +60,8 @@ const CareerMilestone = () => {
         messages: [
           {
             role: "system",
-            content: "You are a career development expert. Analyze resumes and suggest relevant courses, articles, and career advice.",
+            content:
+              "You are a career development expert. Analyze resumes and suggest relevant courses, articles, and career advice.",
           },
           {
             role: "user",
@@ -86,23 +82,40 @@ Format your response as JSON with this structure:
       });
 
       const response = completion.choices[0].message.content;
-      if (response) {
-        // Remove markdown code block wrapper if present
-        const cleanedResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        const parsed = JSON.parse(cleanedResponse);
-        setMilestone(parsed);
-        toast({
-          title: "Analysis complete!",
-          description: "Your personalized career roadmap is ready",
-        });
-      }
+      if (!response) throw new Error("Empty response from model");
+
+      // Strip optional ```json blocks and parse
+      const cleaned = response.replace(/```json\s*|\s*```/g, "").trim();
+      const parsed = JSON.parse(cleaned) as Milestone;
+
+      setMilestone(parsed);
+
+      // Persist for Profile page (front-end only)
+      saveMilestones({
+        courses: (parsed.courses ?? []).map((c: any) => ({
+          title: c.title,
+          provider: c.provider,
+          duration: c.duration,
+          url: c.url,
+          type: "course" as const,
+        })),
+        articles: (parsed.articles ?? []).map((a: any) => ({
+          title: a.title,
+          provider: a.provider,
+          url: a.url,
+          type: "article" as const,
+        })),
+        aiAdvice: parsed.aiAdvice ?? [],
+        capturedAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: "Analysis complete!",
+        description: "Your personalized career roadmap is saved to your profile.",
+      });
     } catch (error) {
       console.error("Analysis error:", error);
-      toast({
-        title: "Analysis failed",
-        description: "Please try again",
-        variant: "destructive",
-      });
+      toast({ title: "Analysis failed", description: "Please try again", variant: "destructive" });
     } finally {
       setIsAnalyzing(false);
     }
@@ -111,7 +124,7 @@ Format your response as JSON with this structure:
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <main className="container py-8 space-y-8">
         <div className="text-center space-y-4">
           <h1 className="text-4xl font-bold gradient-text">Career Milestone</h1>
@@ -126,9 +139,7 @@ Format your response as JSON with this structure:
               <Target className="h-5 w-5" />
               Start Your Journey
             </CardTitle>
-            <CardDescription>
-              Upload your resume and tell us your target job role
-            </CardDescription>
+            <CardDescription>Upload your resume and tell us your target job role</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
@@ -143,12 +154,7 @@ Format your response as JSON with this structure:
             <div className="space-y-2">
               <label className="text-sm font-medium">Upload Resume (PDF)</label>
               <div className="flex items-center gap-4">
-                <Input
-                  type="file"
-                  accept=".pdf"
-                  onChange={handleFileUpload}
-                  className="cursor-pointer"
-                />
+                <Input type="file" accept=".pdf" onChange={handleFileUpload} className="cursor-pointer" />
                 {resumeFile && (
                   <Badge variant="secondary" className="flex items-center gap-1">
                     <Upload className="h-3 w-3" />
@@ -158,12 +164,7 @@ Format your response as JSON with this structure:
               </div>
             </div>
 
-            <Button
-              onClick={handleAnalyze}
-              disabled={isAnalyzing || !jobRole || !resumeFile}
-              className="w-full gradient-primary"
-              size="lg"
-            >
+            <Button onClick={handleAnalyze} disabled={isAnalyzing || !jobRole || !resumeFile} className="w-full gradient-primary" size="lg">
               {isAnalyzing ? "Analyzing..." : "Analyze Career Path"}
             </Button>
           </CardContent>
@@ -180,20 +181,12 @@ Format your response as JSON with this structure:
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 {milestone.courses.map((course, idx) => {
-                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(course.title + ' ' + course.provider)}`;
+                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(course.title + " " + course.provider)}`;
                   return (
-                    <Card 
+                    <Card
                       key={idx}
                       className="hover:shadow-elegant transition-smooth cursor-pointer h-full"
-                      onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = searchUrl;
-                        a.target = '_blank';
-                        a.rel = 'noopener noreferrer';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                      }}
+                      onClick={() => window.open(searchUrl, "_blank", "noopener,noreferrer")}
                     >
                       <CardHeader>
                         <CardTitle className="text-lg">{course.title}</CardTitle>
@@ -216,20 +209,12 @@ Format your response as JSON with this structure:
               </CardHeader>
               <CardContent className="grid gap-4 md:grid-cols-2">
                 {milestone.articles.map((article, idx) => {
-                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(article.title + ' ' + article.provider)}`;
+                  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(article.title + " " + article.provider)}`;
                   return (
-                    <Card 
+                    <Card
                       key={idx}
                       className="hover:shadow-elegant transition-smooth cursor-pointer h-full"
-                      onClick={() => {
-                        const a = document.createElement('a');
-                        a.href = searchUrl;
-                        a.target = '_blank';
-                        a.rel = 'noopener noreferrer';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                      }}
+                      onClick={() => window.open(searchUrl, "_blank", "noopener,noreferrer")}
                     >
                       <CardHeader>
                         <CardTitle className="text-lg">{article.title}</CardTitle>

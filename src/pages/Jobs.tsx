@@ -10,6 +10,9 @@ import {
   Star, Bell, Loader2,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+// Jobs.tsx
+import { useSearchParams } from "react-router-dom";
+
 
 // -------------------- Company Lists --------------------
 const ATS_SOURCES = {
@@ -122,11 +125,23 @@ const Jobs = () => {
   const [notifications, setNotifications] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
   const jobsPerPage = 10;
+  const [params] = useSearchParams();
+
 
   useEffect(() => {
     const stored = JSON.parse(localStorage.getItem("savedJobs") || "[]");
     setSavedJobs(stored);
   }, []);
+
+  useEffect(() => {
+  const q = (params.get("q") || "").trim();
+  const loc = (params.get("loc") || params.get("location") || "").trim();
+
+  if (q) setSearchRole(q);
+  if (loc) setSearchLocation(loc);
+  // No need to trigger a fetch manually; your filter effect will handle it.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
   // -------------------- Fetch + Cache --------------------
   useEffect(() => {

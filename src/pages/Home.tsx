@@ -11,9 +11,17 @@ const Home = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [location, setLocation] = useState("");
 
-  const handleSearch = () => {
-    navigate(`/jobs?q=${searchQuery}&loc=${location}`);
-  };
+  // const handleSearch = () => {
+  //   navigate(`/jobs?q=${searchQuery}&loc=${location}`);
+  // };
+// inside Home.tsx
+const handleSearch = () => {
+  const qs = new URLSearchParams({
+    q: searchQuery.trim(),
+    loc: location.trim(),
+  }).toString();
+  navigate(`/jobs?${qs}`);
+};
 
   const features = [
     {
